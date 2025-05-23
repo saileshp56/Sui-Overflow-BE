@@ -1,1 +1,1 @@
-# InfoFi
+# InfoFi Sui
