@@ -1,0 +1,161 @@
+{
+  "datasets": [
+    {
+      "title": "MNIST Handwritten Digits",
+      "description": "70,000 images of handwritten digits (0-9) in 28x28 grayscale format",
+      "size": "11MB",
+      "format": "CSV/Images",
+      "categories": [
+        "Computer Vision",
+        "Classification"
+      ],
+      "chain_id": null
+    },
+    {
+      "title": "IMDb Movie Reviews",
+      "description": "50,000 movie reviews labeled by sentiment for natural language processing",
+      "size": "80MB",
+      "format": "Text/CSV",
+      "categories": [
+        "NLP",
+        "Sentiment Analysis"
+      ],
+      "chain_id": null
+    },
+    {
+      "title": "Boston Housing",
+      "description": "506 samples of housing prices in Boston suburbs with 13 features",
+      "size": "1MB",
+      "format": "CSV",
+      "categories": [
+        "Regression",
+        "Real Estate"
+      ],
+      "chain_id": null
+    },
+    {
+      "title": "Wallstreet Stocks",
+      "description": "NYSE Stocks Time Series Data since 2002",
+      "size": "0.00MB",
+      "format": "CSV",
+      "categories": [
+        "Classification"
+      ],
+      "chain_id": 1315
+    },
+    {
+      "title": "Iris Dataset",
+      "description": "150 samples of iris flowers with 4 features for species classification",
+      "size": "0.00MB",
+      "format": "CSV",
+      "categories": [
+        "Flowers",
+        "Classification"
+      ],
+      "chain_id": 11155111
+    },
+    {
+      "title": "Pillow Cases",
+      "description": "A dataset full of information for classifying pillow cases",
+      "size": "0.00MB",
+      "format": "CSV",
+      "categories": [
+        "Pillows",
+        "Classification"
+      ],
+      "chain_id": 11155111
+    },
+    {
+      "title": "andreslavescu",
+      "description": "iii",
+      "format": "CSV",
+      "categories": [
+        "NLP",
+        "Classification"
+      ],
+      "size": "0.00MB",
+      "chain_id": 102,
+      "tusky_file_id": "c4a8ad77-4c86-47fd-969c-b9982263a2f7",
+      "tusky_blob_id": "unknown",
+      "tusky_object_id": null,
+      "original_filename": "3.csv",
+      "upload_date": "2025-05-22T01:40:15.127Z"
+    },
+    {
+      "title": "sp",
+      "description": "990jidsaion",
+      "format": "CSV",
+      "categories": [
+        "Flowers",
+        "Classification"
+      ],
+      "size": "0.00MB",
+      "chain_id": 102,
+      "tusky_file_id": "7c4bc938-3113-45f2-8880-c8e03d8a0386",
+      "tusky_blob_id": "unknown",
+      "tusky_object_id": null,
+      "original_filename": "ERC20 Logos.csv",
+      "upload_date": "2025-05-22T01:41:03.863Z"
+    },
+    {
+      "title": "4",
+      "description": "4",
+      "format": "5",
+      "categories": [
+        "6"
+      ],
+      "size": "0.00MB",
+      "chain_id": 102,
+      "tusky_file_id": "b6a9102e-6b73-41ea-a74e-274d5b2a9da1",
+      "tusky_blob_id": "unknown",
+      "tusky_object_id": null,
+      "original_filename": "3.csv",
+      "upload_date": "2025-05-22T01:58:39.214Z"
+    },
+    {
+      "title": "3",
+      "description": "4",
+      "format": "5",
+      "categories": [
+        "6"
+      ],
+      "size": "0.00MB",
+      "chain_id": 102,
+      "tusky_file_id": "fa12dbba-7435-4242-893c-19799790a1b6",
+      "tusky_blob_id": "unknown",
+      "tusky_object_id": null,
+      "original_filename": "3.csv",
+      "upload_date": "2025-05-22T02:05:50.114Z"
+    },
+    {
+      "title": "3",
+      "description": "4",
+      "format": "5",
+      "categories": [
+        "5"
+      ],
+      "size": "0.00MB",
+      "chain_id": 102,
+      "tusky_file_id": "59410634-bed9-4bea-928b-a80ce7361497",
+      "tusky_blob_id": "unknown",
+      "tusky_object_id": null,
+      "original_filename": "3.csv",
+      "upload_date": "2025-05-22T02:07:32.699Z"
+    },
+    {
+      "title": "3",
+      "description": "4",
+      "format": "5",
+      "categories": [
+        "6"
+      ],
+      "size": "0.00MB",
+      "chain_id": 102,
+      "tusky_file_id": "ad9b4134-21c2-4349-afb9-99b5ccd06b31",
+      "tusky_blob_id": "unknown",
+      "tusky_object_id": null,
+      "original_filename": "3.csv",
+      "upload_date": "2025-05-22T02:26:47.154Z"
+    }
+  ]
+}

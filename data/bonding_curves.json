@@ -1,0 +1,64 @@
+{
+  "curves": {
+    "3": {
+      "address": "",
+      "name": "3 Token",
+      "symbol": "3",
+      "chain_id": 102
+    },
+    "4": {
+      "address": "",
+      "name": "4 Token",
+      "symbol": "4",
+      "chain_id": 102
+    },
+    "tlol": {
+      "address": "0x225e127137f11e28d5c7e7855ab24a744516c412",
+      "name": "tlol Token",
+      "symbol": "TLO528",
+      "chain_id": 300
+    },
+    "MNIST Handwritten Digits": {
+      "address": "0xa7330808a0517766fdea3d4b1f8029495bad5e37",
+      "name": "ERC20 Logos Token",
+      "symbol": "ERCaeb",
+      "chain_id": 296
+    },
+    "Iris Dataset": {
+      "address": "0xa5ac22b873b9a202dd7cd28879d04a406b42cfaa",
+      "name": "Iris Dataset Token",
+      "symbol": "IRIee2",
+      "chain_id": 11155111
+    },
+    "Testing123": {
+      "address": "0xaf93a1b09ec1253bf9478a590b4941522a913f19",
+      "name": "Testing123 Token",
+      "symbol": "TESb48",
+      "chain_id": 11155111
+    },
+    "Wallstreet Stocks": {
+      "address": "0xd8dd2776058e680d8fd73e4d004d838f36aada62",
+      "name": "Wallstreet Stocks Token",
+      "symbol": "WAL2c2",
+      "chain_id": 1315
+    },
+    "Pillow Cases": {
+      "address": "0x08aac5b3aed53303c12f0a1ee083f0696bd44fe7",
+      "name": "Pillow Cases Token",
+      "symbol": "PILee3",
+      "chain_id": 11155111
+    },
+    "andreslavescu": {
+      "address": "",
+      "name": "andreslavescu Token",
+      "symbol": "AND",
+      "chain_id": 102
+    },
+    "sp": {
+      "address": "",
+      "name": "sp Token",
+      "symbol": "SP",
+      "chain_id": 102
+    }
+  }
+}

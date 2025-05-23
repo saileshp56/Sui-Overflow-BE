@@ -1,0 +1,18 @@
+{
+  "fileId": "7c4bc938-3113-45f2-8880-c8e03d8a0386",
+  "features": [
+    "sepal.length",
+    "sepal.width",
+    "petal.length",
+    "petal.width"
+  ],
+  "target": "variety",
+  "hyperparameters": {
+    "maxDepth": 5,
+    "minSamplesLeaf": 1,
+    "minSamplesSplit": 2,
+    "criterion": "gini"
+  },
+  "trainedAt": "2025-05-23T16:12:53.372Z",
+  "numExamples": 150
+}
