@@ -10,6 +10,10 @@ const path = require('path');
 const { Tusky } = require('@tusky-io/ts-sdk');
 const multer = require('multer'); // Import multer here
 
+const { SuiClient, getFullnodeUrl } = require('@mysten/sui/client');
+const { Transaction } = require('@mysten/sui/transactions');
+const { Ed25519Keypair } = require('@mysten/sui/keypairs/ed25519');
+
 const app = express();
 const port = 8080;
 
@@ -93,6 +97,94 @@ app.use(cors({
 //   }
 //   next();
 // });
+
+async function createBondingCurveOnSui(initialCurveId) {
+  const suiPackageId = process.env.SUI_PACKAGE_ID;
+  const exportedPrivateKey = process.env.SUI_EXPORTED_PRIVATE_KEY;
+
+  if (!suiPackageId) {
+    console.error('SUI_PACKAGE_ID is not set in .env file.');
+    throw new Error('Sui package ID configuration is missing.');
+  }
+  if (!exportedPrivateKey) {
+    console.error('SUI_EXPORTED_PRIVATE_KEY is not set in .env file.');
+    throw new Error('Sui exported private key configuration is missing.');
+  }
+
+  const suiRpcUrl = getFullnodeUrl('testnet');
+  const suiClient = new SuiClient({ url: suiRpcUrl });
+
+  let keypair;
+  try {
+    if (!exportedPrivateKey.startsWith('suiprivkey')) {
+      throw new Error('SUI_EXPORTED_PRIVATE_KEY does not appear to be a valid suiprivkey string.');
+    }
+    keypair = Ed25519Keypair.fromExportedKeypair(exportedPrivateKey);
+  } catch (err) {
+    console.error('Failed to create keypair from SUI_EXPORTED_PRIVATE_KEY:', err);
+    throw new Error('Invalid SUI_EXPORTED_PRIVATE_KEY format or value.');
+  }
+  
+  console.log(`Using sender address: ${keypair.getPublicKey().toSuiAddress()}`);
+
+  const txb = new Transaction();
+  txb.moveCall({
+    target: `${suiPackageId}::bonding_curve_module::create_new_curve`,
+    arguments: [
+      txb.pure.u64(initialCurveId.toString()) // initial_curve_id: u64
+    ],
+  });
+
+  try {
+    const result = await suiClient.signAndExecuteTransaction({
+      signer: keypair,
+      transaction: txb,
+      options: { showEffects: true, showEvents: true, showObjectChanges: true },
+    });
+
+    let newCurveObjectId = null;
+    const expectedEventType = `${suiPackageId}::bonding_curve_module::NewCurveCreated`;
+    if (result.events) {
+      for (const event of result.events) {
+        if (event.type === expectedEventType) {
+          newCurveObjectId = event.parsedJson.new_curve_object_id;
+          console.log(`Found NewCurveCreated event, new_curve_object_id: ${newCurveObjectId}`);
+          break;
+        }
+      }
+    }
+
+    if (!newCurveObjectId && result.effects && result.effects.created) {
+      console.log('NewCurveCreated event not found or did not contain ID, checking created objects...');
+      const expectedObjectType = `${suiPackageId}::bonding_curve_module::BondingCurve`;
+      for (const createdObj of result.effects.created) {
+        if (createdObj.objectType === expectedObjectType) {
+          newCurveObjectId = createdObj.reference.objectId;
+          console.log(`Found created object of type ${expectedObjectType}, objectId: ${newCurveObjectId}`);
+          break;
+        }
+      }
+    }
+
+    if (!newCurveObjectId) {
+      console.error('Could not find new_curve_object_id in transaction effects or events.');
+      console.error('Sui transaction result:', JSON.stringify(result, null, 2));
+      throw new Error('Failed to extract new curve object ID from Sui transaction.');
+    }
+    
+    console.log(`New bonding curve created on Sui with Object ID: ${newCurveObjectId}`);
+    return {
+      new_curve_object_id: newCurveObjectId,
+      package_id: suiPackageId,
+      transaction_digest: result.digest,
+    };
+  } catch (error) {
+    console.error('Error creating bonding curve on Sui:', error.message);
+    if (error.cause) console.error('Cause:', error.cause);
+    // For more detailed Sui errors, you might need to inspect error.message or specific fields if available
+    throw error;
+  }
+}
 
 // --- /datasets route ---
 app.post('/datasets', upload.single('file'), async (req, res) => {
@@ -211,6 +303,14 @@ app.post('/datasets', upload.single('file'), async (req, res) => {
       const fileMetadata = await tuskyClient.file.get(uploadId);
 
       // CREATE BONDING CURVE AND ADD IT AS A FIELD TO const dataset
+      let bondingCurveInfoSui;
+      try {
+        const curveIdForSui = Date.now(); // Using timestamp as a unique u64 ID
+        bondingCurveInfoSui = await createBondingCurveOnSui(curveIdForSui);
+        console.log('Bonding curve successfully created on Sui:', bondingCurveInfoSui);
+      } catch (suiError) {
+        console.error('Failed to create bonding curve on Sui during dataset upload:', suiError.message);
+      }
 
       const dataset = {
         title: metadata.title,
@@ -218,12 +318,19 @@ app.post('/datasets', upload.single('file'), async (req, res) => {
         format: metadata.format,
         categories: metadata.categories,
         size: req.file.size,
-        chain_id: 102,
+        chain_id: bondingCurveInfoSui ? "sui:testnet" : 102, // Update chain_id if Sui curve created
         tusky_file_id: uploadId,
         tusky_blob_id: fileMetadata.blobId,
         tusky_object_id: fileMetadata.blobObjectId,
         original_filename: req.file.originalname,
-        upload_date: new Date().toISOString()
+        upload_date: new Date().toISOString(),
+        sui_bonding_curve: bondingCurveInfoSui ? {
+            object_id: bondingCurveInfoSui.new_curve_object_id,
+            package_id: bondingCurveInfoSui.package_id,
+            shared_treasury_provider_id: process.env.SUI_SHARED_TREASURY_PROVIDER_ID, // Store this for buy/sell
+            initial_curve_id_used: curveIdForSui,
+            transaction_digest: bondingCurveInfoSui.transaction_digest
+        } : null
       };
 
       console.log('New dataset:', dataset);
@@ -255,14 +362,16 @@ app.post('/datasets', upload.single('file'), async (req, res) => {
           }
 
           bondingCurves.curves[dataset.title] = {
-            address: "",
+            address: bondingCurveInfoSui ? bondingCurveInfoSui.new_curve_object_id : "NOT_CREATED_ON_SUI",
             name: `${dataset.title} Token`,
-            symbol: `${dataset.title.substring(0, 3).toUpperCase()}`,
-            chain_id: 102
+            symbol: `${dataset.title.substring(0, 3).toUpperCase()}`, // This might change based on actual token metadata from Sui if available
+            chain_id: bondingCurveInfoSui ? "sui:testnet" : 102, // Standardized chain identifier
+            sui_package_id: bondingCurveInfoSui ? bondingCurveInfoSui.package_id : null,
+            sui_shared_treasury_provider_id: bondingCurveInfoSui ? process.env.SUI_SHARED_TREASURY_PROVIDER_ID : null,
           };
 
           fs.writeFileSync(bondingCurvesPath, JSON.stringify(bondingCurves, null, 2));
-          console.log('Bonding curve saved to bonding_curves.json');
+          console.log('Bonding curve info updated in bonding_curves.json');
         } catch (error) {
           console.error('Error saving to bonding_curves.json:', error);
         }
