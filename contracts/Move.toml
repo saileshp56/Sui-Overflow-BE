@@ -1,0 +1,10 @@
+[package]
+name = "MyBondingCurvePackage"
+version = "0.0.1"
+edition = "2024.beta"
+
+# [dependencies]
+# Sui = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/sui-framework", rev = "framework/testnet" }
+
+[addresses]
+my_bonding_curve_package_addr = "0x0" # This will be replaced by the actual address upon publishing 
