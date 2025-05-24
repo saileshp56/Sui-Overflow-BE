@@ -109,6 +109,29 @@
         "initial_curve_id_used": 1748035257375,
         "transaction_digest": "F5484CZd81vffDjktoFCmnKYL7E4m3yHioibZtPuJSnU"
       }
+    },
+    {
+      "title": "Flower Dataset",
+      "description": "SUI Overflow Hackathon Flowers",
+      "format": "CSV",
+      "categories": [
+        "NLP",
+        "Classification"
+      ],
+      "size": 2170,
+      "chain_id": "sui:testnet",
+      "tusky_file_id": "bf55cca2-bcc3-476a-afd6-cb1deba81b9c",
+      "tusky_blob_id": "unknown",
+      "tusky_object_id": null,
+      "original_filename": "Iris Training Dataset.csv",
+      "upload_date": "2025-05-24T02:13:55.030Z",
+      "sui_bonding_curve": {
+        "object_id": "0xd75a75e222ed25c5eb89aa1f75c263bf898f757e85d7f23d5b033ed09e60607c",
+        "package_id": "0x1cbcd75fa99bf06bea65121f7fd17556ad1ea332049544c9b9e5c6290ce2c3d6",
+        "shared_treasury_provider_id": "0xad4cb476e811b7e454373faeee1f071c7a944a89b79a22dee8fab55c17ada8e4",
+        "initial_curve_id_used": 1748052833486,
+        "transaction_digest": "H4o6JJYiZrsX3kFSdYK59xNsjYEZYA51rGa254RQCQgP"
+      }
     }
   ]
 }
