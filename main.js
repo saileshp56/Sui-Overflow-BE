@@ -13,6 +13,7 @@ const multer = require('multer'); // Import multer here
 const { SuiClient, getFullnodeUrl } = require('@mysten/sui/client');
 const { Transaction } = require('@mysten/sui/transactions');
 const { Ed25519Keypair } = require('@mysten/sui/keypairs/ed25519');
+const { decodeSuiPrivateKey } = require('@mysten/sui/cryptography');
 
 const app = express();
 const port = 8080;
@@ -98,17 +99,25 @@ app.use(cors({
 //   next();
 // });
 
-async function createBondingCurveOnSui(initialCurveId) {
+// Constants from Move contract
+const PRECISION_FOR_PRICE = 1000000; // 1_000_000
+const INITIAL_PRICE_SCALED = 100;
+const PRICE_INCREASE_SCALED = 10;
+
+// Helper function to get Sui Client and Keypair
+async function getSuiClientAndKeypair() {
   const suiPackageId = process.env.SUI_PACKAGE_ID;
   const exportedPrivateKey = process.env.SUI_EXPORTED_PRIVATE_KEY;
+  const recoveryPhrase = process.env.SUI_RECOVERY_PHRASE;
 
   if (!suiPackageId) {
     console.error('SUI_PACKAGE_ID is not set in .env file.');
     throw new Error('Sui package ID configuration is missing.');
   }
-  if (!exportedPrivateKey) {
-    console.error('SUI_EXPORTED_PRIVATE_KEY is not set in .env file.');
-    throw new Error('Sui exported private key configuration is missing.');
+
+  if (!exportedPrivateKey && !recoveryPhrase) {
+    console.error('Neither SUI_EXPORTED_PRIVATE_KEY nor SUI_RECOVERY_PHRASE is set in .env file.');
+    throw new Error('Sui key material configuration is missing.');
   }
 
   const suiRpcUrl = getFullnodeUrl('testnet');
@@ -116,16 +125,30 @@ async function createBondingCurveOnSui(initialCurveId) {
 
   let keypair;
   try {
-    if (!exportedPrivateKey.startsWith('suiprivkey')) {
-      throw new Error('SUI_EXPORTED_PRIVATE_KEY does not appear to be a valid suiprivkey string.');
+    if (exportedPrivateKey) {
+      if (!exportedPrivateKey.startsWith('suiprivkey')) {
+        throw new Error('SUI_EXPORTED_PRIVATE_KEY does not appear to be a valid suiprivkey string.');
+      }
+      const { secretKey } = decodeSuiPrivateKey(exportedPrivateKey);
+      keypair = Ed25519Keypair.fromSecretKey(secretKey);
+    } else if (recoveryPhrase) {
+      keypair = Ed25519Keypair.fromMnemonic(recoveryPhrase);
+    } else {
+        throw new Error('No valid key material found.');
     }
-    keypair = Ed25519Keypair.fromExportedKeypair(exportedPrivateKey);
   } catch (err) {
-    console.error('Failed to create keypair from SUI_EXPORTED_PRIVATE_KEY:', err);
-    throw new Error('Invalid SUI_EXPORTED_PRIVATE_KEY format or value.');
+    console.error('Failed to create keypair:', err);
+    throw new Error(`Invalid SUI key material: ${err.message}`);
   }
   
-  console.log(`Using sender address: ${keypair.getPublicKey().toSuiAddress()}`);
+  // console.log(`Using sender address for transaction: ${keypair.getPublicKey().toSuiAddress()}`);
+  return { suiClient, keypair };
+}
+
+async function createBondingCurveOnSui(initialCurveId) {
+  const suiPackageId = process.env.SUI_PACKAGE_ID;
+  const { suiClient, keypair } = await getSuiClientAndKeypair();
+  console.log(`Using sender address for createBondingCurveOnSui: ${keypair.getPublicKey().toSuiAddress()}`);
 
   const txb = new Transaction();
   txb.moveCall({
@@ -304,8 +327,9 @@ app.post('/datasets', upload.single('file'), async (req, res) => {
 
       // CREATE BONDING CURVE AND ADD IT AS A FIELD TO const dataset
       let bondingCurveInfoSui;
+      let curveIdForSui = Date.now(); // Using timestamp as a unique u64 ID
+
       try {
-        const curveIdForSui = Date.now(); // Using timestamp as a unique u64 ID
         bondingCurveInfoSui = await createBondingCurveOnSui(curveIdForSui);
         console.log('Bonding curve successfully created on Sui:', bondingCurveInfoSui);
       } catch (suiError) {
@@ -411,7 +435,7 @@ app.post('/datasets', upload.single('file'), async (req, res) => {
 });
 
 // --- /datasets endpoint ---
-app.get('/datasets', (req, res) => {
+app.get('/datasets', async (req, res) => {
   try {
     let datasets;
     try {
@@ -430,15 +454,32 @@ app.get('/datasets', (req, res) => {
       console.error("Failed to read bonding_curves.json:", err);
     }
 
-    const datasetsWithCurves = datasets.datasets.map(dataset => {
+    const datasetsWithCurvesAndPrices = await Promise.all(datasets.datasets.map(async dataset => {
       const bondingCurve = bondingCurves.curves[dataset.title];
+      let price = null;
+      
+      if (dataset.sui_bonding_curve && dataset.sui_bonding_curve.object_id) {
+        try {
+          const scaledPrice = await exampleGetCurvePrice(dataset.sui_bonding_curve.object_id);
+          // Convert scaled price to SUI by dividing by PRECISION_FOR_PRICE
+          price = scaledPrice ? Number(scaledPrice.toString()) / Number(PRECISION_FOR_PRICE) : null;
+
+        } catch (error) {
+          console.error(`Failed to get price for dataset ${dataset.title}:`, error);
+        }
+      }
+
       return {
         ...dataset,
-        bonding_curve: bondingCurve || null
+        bonding_curve: bondingCurve || null,
+        current_price: price ? {
+          amount: price,
+          currency: "SUI"
+        } : null
       };
-    });
+    }));
 
-    res.json({ datasets: datasetsWithCurves });
+    res.json({ datasets: datasetsWithCurvesAndPrices });
   } catch (error) {
     console.error('Error in get_datasets:', error);
     res.status(500).json({ error: "Internal server error" });
@@ -447,13 +488,13 @@ app.get('/datasets', (req, res) => {
 
 // --- /get_file route ---
 app.post('/get_file', upload.single('validation_dataset'), async (req, res) => {
+  console.log("GET FILE POSTINGGG");
   try {
     let { title, desired_accuracy, maxDepth, minSamplesLeaf, minSamplesSplit, criterion, testData } = req.body;
     const validationFile = req.file;
 
     // This line overrides the 'title' parameter from the request body.
     // If you intend to use the title sent from the frontend, remove or adjust this line.
-    title = "sp";
 
     if (!title) {
       return res.status(400).json({
@@ -581,7 +622,30 @@ app.post('/get_file', upload.single('validation_dataset'), async (req, res) => {
       }
 
       // BUY THE BONDING CURVE
-  
+      try {
+        // Get the bonding curve object ID from the dataset
+        if (dataset.sui_bonding_curve && dataset.sui_bonding_curve.object_id) {
+          const buyResult = await suiBuyTokens(dataset.sui_bonding_curve.object_id, 5);
+          response.bonding_curve_purchase = {
+            success: true,
+            transaction_digest: buyResult.transaction_digest,
+            purchased_event_details: buyResult.purchased_event_details
+          };
+        } else {
+          console.warn('No bonding curve object ID found for dataset ->', dataset);
+          response.bonding_curve_purchase = {
+            success: false,
+            message: 'No bonding curve object ID found for dataset'
+          };
+        }
+      } catch (buyError) {
+        console.error('Error buying from bonding curve:', buyError);
+        response.bonding_curve_purchase = {
+          success: false,
+          error: buyError.message
+        };
+      }
+
       res.json(response);
     } else {
       let resppp = {
@@ -607,6 +671,385 @@ app.post('/get_file', upload.single('validation_dataset'), async (req, res) => {
         console.error('Error deleting temporary validation file:', unlinkErr);
       }
     }
+  }
+});
+
+async function exampleGetCurvePrice(someBondingCurveObjectId) {
+  try {
+    console.log(`Fetching state for curve: ${someBondingCurveObjectId}`);
+    const curveState = await getBondingCurveState(someBondingCurveObjectId);
+    
+    console.log(`Total supply for pricing: ${curveState.total_supply_for_pricing.toString()}`);
+    console.log(`Curve ID from state: ${curveState.curve_id.toString()}`);
+
+    // "Calling" the current_price_scaled view function:
+    const currentPrice = jsCurrentPriceScaled(curveState.total_supply_for_pricing);
+    console.log(`Calculated current price (scaled) for ${someBondingCurveObjectId}: ${currentPrice.toString()}`);
+
+    // "Calling" total_supply_for_pricing and get_curve_id (getters):
+    const totalSupply = curveState.total_supply_for_pricing; // Already fetched
+    const curveId = curveState.curve_id; // Already fetched
+    console.log(`Getter - Total Supply: ${totalSupply.toString()}`);
+    console.log(`Getter - Curve ID: ${curveId.toString()}`);
+    
+    // "Calling" calculate_purchase_amount:
+    const mockPayment = 100000n; // Example mock payment (as BigInt)
+    const tokensToGet = jsCalculatePurchaseAmount(curveState.total_supply_for_pricing, mockPayment);
+    console.log(`For a mock payment of ${mockPayment.toString()}, you would get ${tokensToGet.toString()} tokens.`);
+
+    return BigInt(currentPrice); // Return as BigInt
+  } catch (error) {
+    console.error(`Error in exampleGetCurvePrice for ${someBondingCurveObjectId}:`, error.message);
+    // Handle error appropriately
+    return null;
+  }
+}
+
+
+// Function to buy tokens from a specific bonding curve
+async function suiBuyTokens(bondingCurveObjectId, mockPaymentAmount) {
+  const suiPackageId = process.env.SUI_PACKAGE_ID;
+  const sharedTreasuryProviderId = process.env.SUI_SHARED_TREASURY_PROVIDER_ID;
+
+  if (!sharedTreasuryProviderId) {
+    console.error('SUI_SHARED_TREASURY_PROVIDER_ID is not set in .env file.');
+    throw new Error('Sui Shared Treasury Provider ID configuration is missing.');
+  }
+
+  if (!bondingCurveObjectId) {
+    throw new Error('Bonding curve object ID is required.');
+  }
+  if (mockPaymentAmount <= 0) {
+    throw new Error('Mock payment amount must be greater than zero.');
+  }
+
+  const { suiClient, keypair } = await getSuiClientAndKeypair();
+  console.log(`Using sender address for suiBuyTokens: ${keypair.getPublicKey().toSuiAddress()}`);
+
+  const txb = new Transaction();
+  txb.moveCall({
+    target: `${suiPackageId}::bonding_curve_module::buy`,
+    arguments: [
+      txb.object(sharedTreasuryProviderId), // treasury_provider: &mut SharedTreasuryProvider
+      txb.object(bondingCurveObjectId),    // curve: &mut BondingCurve
+      txb.pure.u64(mockPaymentAmount.toString()), // mock_payment_amount: u64
+    ],
+  });
+
+  try {
+    const result = await suiClient.signAndExecuteTransaction({
+      signer: keypair,
+      transaction: txb,
+      options: { showEffects: true, showEvents: true, showObjectChanges: true },
+    });
+
+    let purchasedEvent = null;
+    const expectedEventType = `${suiPackageId}::bonding_curve_module::TokenPurchased`;
+    if (result.events) {
+      for (const event of result.events) {
+        if (event.type === expectedEventType && event.parsedJson && event.parsedJson.curve_id === (await getBondingCurveDetailsFromSui(bondingCurveObjectId, suiClient)).curve_id.toString()) {
+          // We also need to ensure this event is for the correct curve object if multiple curves exist
+          // This check assumes getBondingCurveDetailsFromSui fetches the curve and matches its internal curve_id
+          // For now, we simplify and assume the event on this tx for this module is the one we want if the target object matches.
+          // A more robust check might involve inspecting object changes if the event doesn't uniquely identify the curve instance.
+          purchasedEvent = event.parsedJson;
+          console.log(`Found TokenPurchased event:`, purchasedEvent);
+          break;
+        }
+      }
+    }
+
+    if (!purchasedEvent) {
+      console.warn('TokenPurchased event not found or did not match expected curve ID. Transaction result:', JSON.stringify(result, null, 2));
+      // Fallback or less precise: check if the transaction was successful and a coin was transferred to the buyer
+      if (result.effects.status.status !== 'success') {
+        throw new Error(`Sui transaction failed: ${result.effects.status.error}`);
+      }
+      // This part is tricky without a clear way to get the minted coin ID from the buy event directly for non-owned objects
+      // The event is the primary confirmation here.
+      console.log('Transaction successful, but specific TokenPurchased event details not fully confirmed from events alone for this curve instance.');
+    }
+    
+    console.log(`Tokens purchased successfully. Transaction digest: ${result.digest}`);
+    return {
+      transaction_digest: result.digest,
+      events: result.events,
+      effects: result.effects,
+      purchased_event_details: purchasedEvent, // May be null if specific event not found
+    };
+  } catch (error) {
+    console.error('Error buying tokens on Sui:', error.message);
+    if (error.cause) console.error('Cause:', error.cause);
+    throw error;
+  }
+}
+
+// --- Bonding Curve Routes ---
+app.post('/bonding-curve/buy', async (req, res) => {
+  const { bondingCurveObjectId, mockPaymentAmount } = req.body;
+
+  if (!bondingCurveObjectId || typeof mockPaymentAmount !== 'number' || mockPaymentAmount <= 0) {
+    return res.status(400).json({
+      success: false,
+      message: 'Missing or invalid parameters: bondingCurveObjectId (string) and mockPaymentAmount (positive number) are required.'
+    });
+  }
+
+  try {
+    const result = await suiBuyTokens(bondingCurveObjectId, mockPaymentAmount);
+    res.status(200).json({ success: true, message: 'Buy transaction submitted successfully.', data: result });
+  } catch (error) {
+    console.error('Error in /bonding-curve/buy route:', error.message);
+    res.status(500).json({
+      success: false,
+      message: `Error buying tokens: ${error.message}`
+    });
+  }
+});
+
+// Function to fetch BondingCurve object details from Sui
+// This will be used by view functions and potentially by buy/sell for confirmations
+async function getBondingCurveDetailsFromSui(bondingCurveObjectId, client) {
+  let suiClient = client;
+  if (!suiClient) {
+    const { suiClient: newClient } = await getSuiClientAndKeypair();
+    suiClient = newClient;
+  }
+  try {
+    const objectResponse = await suiClient.getObject({
+      id: bondingCurveObjectId,
+      options: { showContent: true },
+    });
+
+    if (objectResponse.error || !objectResponse.data || !objectResponse.data.content) {
+      console.error('Error fetching bonding curve object or object has no content:', objectResponse.error);
+      throw new Error(`Failed to fetch bonding curve object ${bondingCurveObjectId}: ${objectResponse.error?.message || 'No data or content'}`);
+    }
+    
+    // Assuming the content is of type `0xPACKAGE::bonding_curve_module::BondingCurve`
+    // and fields are `total_supply_for_pricing` and `curve_id` (as u64 strings)
+    const fields = objectResponse.data.content.fields;
+    return {
+      total_supply_for_pricing: BigInt(fields.total_supply_for_pricing),
+      curve_id: BigInt(fields.curve_id),
+      // raw_object: objectResponse.data // uncomment if you need the full object
+    };
+  } catch (error) {
+    console.error(`Error getting bonding curve details for ${bondingCurveObjectId}:`, error.message);
+    throw error;
+  }
+}
+
+// Function to sell tokens to a specific bonding curve
+async function suiSellTokens(bondingCurveObjectId, tokenCoinObjectId) {
+  const suiPackageId = process.env.SUI_PACKAGE_ID;
+  const sharedTreasuryProviderId = process.env.SUI_SHARED_TREASURY_PROVIDER_ID;
+
+  if (!sharedTreasuryProviderId) {
+    console.error('SUI_SHARED_TREASURY_PROVIDER_ID is not set in .env file.');
+    throw new Error('Sui Shared Treasury Provider ID configuration is missing.');
+  }
+  if (!bondingCurveObjectId) {
+    throw new Error('Bonding curve object ID is required.');
+  }
+  if (!tokenCoinObjectId) {
+    throw new Error('Token coin object ID to sell is required.');
+  }
+
+  const { suiClient, keypair } = await getSuiClientAndKeypair();
+  console.log(`Using sender address for suiSellTokens: ${keypair.getPublicKey().toSuiAddress()}`);
+
+  const txb = new Transaction();
+  txb.moveCall({
+    target: `${suiPackageId}::bonding_curve_module::sell`,
+    arguments: [
+      txb.object(sharedTreasuryProviderId), // treasury_provider: &mut SharedTreasuryProvider
+      txb.object(bondingCurveObjectId),    // curve: &mut BondingCurve
+      txb.object(tokenCoinObjectId),       // tokens_to_sell: Coin<BONDING_CURVE_MODULE>
+    ],
+  });
+
+  try {
+    const result = await suiClient.signAndExecuteTransaction({
+      signer: keypair,
+      transaction: txb,
+      options: { showEffects: true, showEvents: true },
+    });
+
+    let soldEvent = null;
+    const expectedEventType = `${suiPackageId}::bonding_curve_module::TokenSold`;
+    if (result.events) {
+      for (const event of result.events) {
+        if (event.type === expectedEventType) {
+          // Similar to buy, a more robust check might be needed if multiple curves exist
+          // and events don't uniquely identify the curve instance via the event fields alone.
+          soldEvent = event.parsedJson;
+          console.log(`Found TokenSold event:`, soldEvent);
+          break;
+        }
+      }
+    }
+
+    if (!soldEvent && result.effects.status.status !== 'success') {
+        throw new Error(`Sui transaction failed: ${result.effects.status.error}`);
+    }
+    if (!soldEvent){
+        console.warn('TokenSold event not found. Transaction was successful but event details are missing.', JSON.stringify(result, null, 2));
+    }
+    
+    console.log(`Tokens sold successfully. Transaction digest: ${result.digest}`);
+    return {
+      transaction_digest: result.digest,
+      events: result.events,
+      effects: result.effects,
+      sold_event_details: soldEvent, // May be null if specific event not found
+    };
+  } catch (error) {
+    console.error('Error selling tokens on Sui:', error.message);
+    if (error.cause) console.error('Cause:', error.cause);
+    throw error;
+  }
+}
+
+app.post('/bonding-curve/sell', async (req, res) => {
+  const { bondingCurveObjectId, tokenCoinObjectId } = req.body;
+
+  if (!bondingCurveObjectId || !tokenCoinObjectId) {
+    return res.status(400).json({
+      success: false,
+      message: 'Missing or invalid parameters: bondingCurveObjectId (string) and tokenCoinObjectId (string) are required.'
+    });
+  }
+
+  try {
+    const result = await suiSellTokens(bondingCurveObjectId, tokenCoinObjectId);
+    res.status(200).json({ success: true, message: 'Sell transaction submitted successfully.', data: result });
+  } catch (error) {
+    console.error('Error in /bonding-curve/sell route:', error.message);
+    res.status(500).json({
+      success: false,
+      message: `Error selling tokens: ${error.message}`
+    });
+  }
+});
+
+// --- Client-side Calculation Helpers (mirroring Move logic) ---
+function calculateCurrentPriceScaled(totalSupplyForPricing) {
+  return BigInt(INITIAL_PRICE_SCALED) + (BigInt(totalSupplyForPricing) * BigInt(PRICE_INCREASE_SCALED));
+}
+
+function calculatePurchaseAmountForTokens(totalSupplyForPricing, mockPaymentAmount) {
+  const price = calculateCurrentPriceScaled(totalSupplyForPricing);
+  if (price === 0n) { return 0n; }
+  return (BigInt(mockPaymentAmount) * BigInt(PRECISION_FOR_PRICE)) / price;
+}
+
+function calculatePaymentRequiredForTokens(totalSupplyForPricing, tokenAmount) {
+  const price = calculateCurrentPriceScaled(totalSupplyForPricing);
+  return (BigInt(tokenAmount) * price) / BigInt(PRECISION_FOR_PRICE);
+}
+
+function calculateSaleReturnForTokens(totalSupplyForPricing, tokenAmountToSell) {
+  totalSupplyForPricing = BigInt(totalSupplyForPricing);
+  tokenAmountToSell = BigInt(tokenAmountToSell);
+  if (totalSupplyForPricing < tokenAmountToSell) {
+    // This should ideally align with E_INSUFFICIENT_SUPPLY_FOR_SALE from Move
+    // For client-side calc, we can return 0 or throw an error.
+    // Throwing error might be better to indicate impossibility.
+    throw new Error('Insufficient supply for the sale (total_supply_for_pricing < tokenAmountToSell).');
+  }
+  const supplyAfterSale = totalSupplyForPricing - tokenAmountToSell;
+  const priceAtSaleTime = BigInt(INITIAL_PRICE_SCALED) + (supplyAfterSale * BigInt(PRICE_INCREASE_SCALED));
+  return (tokenAmountToSell * priceAtSaleTime) / BigInt(PRECISION_FOR_PRICE);
+}
+
+// --- Bonding Curve View Function Routes ---
+
+app.get('/bonding-curve/:curveObjectId/info', async (req, res) => {
+  const { curveObjectId } = req.params;
+  try {
+    const details = await getBondingCurveDetailsFromSui(curveObjectId);
+    res.status(200).json({ 
+      success: true, 
+      data: {
+        ...details,
+        total_supply_for_pricing: details.total_supply_for_pricing.toString(),
+        curve_id: details.curve_id.toString(),
+      }
+    });
+  } catch (error) {
+    console.error(`Error in /bonding-curve/${curveObjectId}/info route:`, error.message);
+    res.status(500).json({ success: false, message: `Error fetching curve info: ${error.message}` });
+  }
+});
+
+app.get('/bonding-curve/:curveObjectId/current-price-scaled', async (req, res) => {
+  const { curveObjectId } = req.params;
+  try {
+    const { total_supply_for_pricing } = await getBondingCurveDetailsFromSui(curveObjectId);
+    const currentPrice = calculateCurrentPriceScaled(total_supply_for_pricing);
+    res.status(200).json({ success: true, data: { current_price_scaled: currentPrice.toString() } });
+  } catch (error) {
+    console.error(`Error in /bonding-curve/${curveObjectId}/current-price-scaled route:`, error.message);
+    res.status(500).json({ success: false, message: `Error calculating current price: ${error.message}` });
+  }
+});
+
+app.get('/bonding-curve/:curveObjectId/calculate-purchase-amount', async (req, res) => {
+  const { curveObjectId } = req.params;
+  const mockPaymentAmount = req.query.mockPaymentAmount;
+
+  if (mockPaymentAmount === undefined || isNaN(Number(mockPaymentAmount)) || Number(mockPaymentAmount) <= 0) {
+    return res.status(400).json({ success: false, message: 'Missing or invalid query parameter: mockPaymentAmount (positive number) is required.' });
+  }
+
+  try {
+    const { total_supply_for_pricing } = await getBondingCurveDetailsFromSui(curveObjectId);
+    const tokenAmount = calculatePurchaseAmountForTokens(total_supply_for_pricing, BigInt(mockPaymentAmount));
+    res.status(200).json({ success: true, data: { token_amount: tokenAmount.toString() } });
+  } catch (error) {
+    console.error(`Error in /bonding-curve/${curveObjectId}/calculate-purchase-amount route:`, error.message);
+    res.status(500).json({ success: false, message: `Error calculating purchase amount: ${error.message}` });
+  }
+});
+
+app.get('/bonding-curve/:curveObjectId/calculate-payment-required', async (req, res) => {
+  const { curveObjectId } = req.params;
+  const tokenAmount = req.query.tokenAmount;
+
+  if (tokenAmount === undefined || isNaN(Number(tokenAmount)) || Number(tokenAmount) <= 0) {
+    return res.status(400).json({ success: false, message: 'Missing or invalid query parameter: tokenAmount (positive number) is required.' });
+  }
+
+  try {
+    const { total_supply_for_pricing } = await getBondingCurveDetailsFromSui(curveObjectId);
+    const paymentRequired = calculatePaymentRequiredForTokens(total_supply_for_pricing, BigInt(tokenAmount));
+    res.status(200).json({ success: true, data: { payment_required: paymentRequired.toString() } });
+  } catch (error) {
+    console.error(`Error in /bonding-curve/${curveObjectId}/calculate-payment-required route:`, error.message);
+    res.status(500).json({ success: false, message: `Error calculating payment required: ${error.message}` });
+  }
+});
+
+app.get('/bonding-curve/:curveObjectId/calculate-sale-return', async (req, res) => {
+  const { curveObjectId } = req.params;
+  const tokenAmountToSell = req.query.tokenAmountToSell;
+
+  if (tokenAmountToSell === undefined || isNaN(Number(tokenAmountToSell)) || Number(tokenAmountToSell) <= 0) {
+    return res.status(400).json({ success: false, message: 'Missing or invalid query parameter: tokenAmountToSell (positive number) is required.' });
+  }
+
+  try {
+    const { total_supply_for_pricing } = await getBondingCurveDetailsFromSui(curveObjectId);
+    const saleReturn = calculateSaleReturnForTokens(total_supply_for_pricing, BigInt(tokenAmountToSell));
+    res.status(200).json({ success: true, data: { sale_return: saleReturn.toString() } });
+  } catch (error) {
+    console.error(`Error in /bonding-curve/${curveObjectId}/calculate-sale-return route:`, error.message);
+    // Distinguish between calculation error (like insufficient supply) and other errors
+    if (error.message.includes('Insufficient supply')) {
+        return res.status(400).json({ success: false, message: error.message });
+    }
+    res.status(500).json({ success: false, message: `Error calculating sale return: ${error.message}` });
   }
 });
 
@@ -664,3 +1107,93 @@ app.listen(port, async () => {
     console.error('Failed to initialize Tusky client. Please check your .env configuration.');
   }
 });
+
+
+/**
+ * Fetches the state of a BondingCurve object from the Sui network.
+ * @param {string} bondingCurveObjectId The ID of the BondingCurve shared object.
+ * @param {SuiClient} client Optional SuiClient instance.
+ * @param {number} retries Optional number of retries for fetching.
+ * @param {number} delayMs Optional delay between retries.
+ * @returns {Promise<object>} An object with total_supply_for_pricing and curve_id.
+ */
+async function getBondingCurveState(bondingCurveObjectId, client, retries = 3, delayMs = 1000) {
+  let suiClient = client;
+  if (!suiClient) {
+    // Get a client instance if one isn't provided
+    const { suiClient: newClient } = await getSuiClientAndKeypair();
+    suiClient = newClient;
+  }
+
+  try {
+    const objectResponse = await suiClient.getObject({
+      id: bondingCurveObjectId,
+      options: { showContent: true }, // Only content is needed for these fields
+    });
+
+    if (objectResponse.error) {
+      if (objectResponse.error.code === 'notExists' && retries > 0) {
+        console.warn(`BondingCurve object ${bondingCurveObjectId} not found, retrying (${retries} left) in ${delayMs}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+        return getBondingCurveState(bondingCurveObjectId, suiClient, retries - 1, delayMs);
+      }
+      console.error('Error fetching bonding curve object:', objectResponse.error);
+      throw new Error(`Failed to fetch bonding curve object ${bondingCurveObjectId}: ${objectResponse.error?.message || 'Unknown error'}`);
+    }
+
+    if (!objectResponse.data || !objectResponse.data.content || !objectResponse.data.content.fields) {
+      console.error('Bonding curve object has no data, content, or fields:', objectResponse);
+      throw new Error(`Bonding curve object ${bondingCurveObjectId} has no data, content, or fields`);
+    }
+
+    const fields = objectResponse.data.content.fields;
+    return {
+      total_supply_for_pricing: BigInt(fields.total_supply_for_pricing),
+      curve_id: BigInt(fields.curve_id),
+    };
+  } catch (error) {
+    console.error(`Error getting bonding curve state for ${bondingCurveObjectId}:`, error.message);
+    throw error; // Re-throw the error to be handled by the caller
+  }
+}
+
+function jsCurrentPriceScaled(totalSupplyForPricing) {
+  // Convert constants to BigInt and ensure all operations use BigInt
+  const initialPriceScaled = BigInt(INITIAL_PRICE_SCALED);
+  const priceIncreaseScaled = BigInt(PRICE_INCREASE_SCALED);
+  // totalSupplyForPricing should already be a BigInt
+  return initialPriceScaled + (totalSupplyForPricing * priceIncreaseScaled);
+}
+
+function jsCalculatePurchaseAmount(totalSupplyForPricing, mockPaymentAmount) {
+  // Convert constant to BigInt
+  const precisionForPrice = BigInt(PRECISION_FOR_PRICE);
+  // totalSupplyForPricing, mockPaymentAmount should be BigInts
+  const price = jsCurrentPriceScaled(totalSupplyForPricing);
+  if (price === 0n) { return 0n; } // Avoid division by zero
+  return (mockPaymentAmount * precisionForPrice) / price;
+}
+
+function jsCalculatePaymentRequired(totalSupplyForPricing, tokenAmount) {
+  // Convert constant to BigInt
+  const precisionForPrice = BigInt(PRECISION_FOR_PRICE);
+  // totalSupplyForPricing, tokenAmount should be BigInts
+  const price = jsCurrentPriceScaled(totalSupplyForPricing);
+  return (tokenAmount * price) / precisionForPrice;
+}
+
+function jsCalculateSaleReturn(totalSupplyForPricing, tokenAmountToSell) {
+  // Convert constants to BigInt
+  const initialPriceScaled = BigInt(INITIAL_PRICE_SCALED);
+  const priceIncreaseScaled = BigInt(PRICE_INCREASE_SCALED);
+  const precisionForPrice = BigInt(PRECISION_FOR_PRICE);
+  
+  // totalSupplyForPricing, tokenAmountToSell should be BigInts
+  if (totalSupplyForPricing < tokenAmountToSell) {
+    // Mirroring E_INSUFFICIENT_SUPPLY_FOR_SALE from Move
+    throw new Error('Insufficient supply for the sale (total_supply_for_pricing < tokenAmountToSell).');
+  }
+  const supplyAfterSale = totalSupplyForPricing - tokenAmountToSell;
+  const priceAtSaleTime = initialPriceScaled + (supplyAfterSale * priceIncreaseScaled);
+  return (tokenAmountToSell * priceAtSaleTime) / precisionForPrice;
+}

@@ -48,17 +48,21 @@
       "symbol": "PILee3",
       "chain_id": 11155111
     },
-    "andreslavescu": {
-      "address": "",
-      "name": "andreslavescu Token",
-      "symbol": "AND",
-      "chain_id": 102
+    "MACLAB DATASET": {
+      "address": "0x4682eeea2b549e4bdd838a901c71a2cc2422caa1ad74a8c545105ac57a519250",
+      "name": "MACLAB2 Token",
+      "symbol": "MAC",
+      "chain_id": "sui:testnet",
+      "sui_package_id": "0x1cbcd75fa99bf06bea65121f7fd17556ad1ea332049544c9b9e5c6290ce2c3d6",
+      "sui_shared_treasury_provider_id": "0xad4cb476e811b7e454373faeee1f071c7a944a89b79a22dee8fab55c17ada8e4"
     },
-    "sp": {
-      "address": "",
-      "name": "sp Token",
-      "symbol": "SP",
-      "chain_id": 102
+    "E7 Dataset": {
+      "address": "0xc51585dec24869df3d81b3f8c5a5489aaf3059abfd79295889ef2009a156fe09",
+      "name": "E7 Dataset Token",
+      "symbol": "E7 ",
+      "chain_id": "sui:testnet",
+      "sui_package_id": "0x1cbcd75fa99bf06bea65121f7fd17556ad1ea332049544c9b9e5c6290ce2c3d6",
+      "sui_shared_treasury_provider_id": "0xad4cb476e811b7e454373faeee1f071c7a944a89b79a22dee8fab55c17ada8e4"
     }
   }
 }

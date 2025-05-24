@@ -66,96 +66,49 @@
       "chain_id": 11155111
     },
     {
-      "title": "andreslavescu",
-      "description": "iii",
+      "title": "MACLAB DATASET",
+      "description": "A dataset I uploaded in Mac Lab of the University of Waterloo",
+      "format": "CSV",
+      "categories": [
+        "flowers"
+      ],
+      "size": 2765,
+      "chain_id": "sui:testnet",
+      "tusky_file_id": "9d9b33f8-4aa4-4403-914a-d415dd65d563",
+      "tusky_blob_id": "unknown",
+      "tusky_object_id": null,
+      "original_filename": "xBad Iris Dataset copy.csv",
+      "upload_date": "2025-05-23T20:45:25.587Z",
+      "sui_bonding_curve": {
+        "object_id": "0x4682eeea2b549e4bdd838a901c71a2cc2422caa1ad74a8c545105ac57a519250",
+        "package_id": "0x1cbcd75fa99bf06bea65121f7fd17556ad1ea332049544c9b9e5c6290ce2c3d6",
+        "shared_treasury_provider_id": "0xad4cb476e811b7e454373faeee1f071c7a944a89b79a22dee8fab55c17ada8e4",
+        "initial_curve_id_used": 1748033124626,
+        "transaction_digest": "5wyCgSvzpmZ6uFJzKkEPVnRHCSqHMiMqBKeUmXF4QGGB"
+      }
+    },
+    {
+      "title": "E7 Dataset",
+      "description": "A dataset I uploaded in E7 of the University of Waterloo",
       "format": "CSV",
       "categories": [
         "NLP",
-        "Classification"
+        "Engineering"
       ],
-      "size": "0.00MB",
-      "chain_id": 102,
-      "tusky_file_id": "c4a8ad77-4c86-47fd-969c-b9982263a2f7",
+      "size": 2765,
+      "chain_id": "sui:testnet",
+      "tusky_file_id": "9e861e91-2d7f-4928-a489-63d68e7aeff6",
       "tusky_blob_id": "unknown",
       "tusky_object_id": null,
-      "original_filename": "3.csv",
-      "upload_date": "2025-05-22T01:40:15.127Z"
-    },
-    {
-      "title": "sp",
-      "description": "990jidsaion",
-      "format": "CSV",
-      "categories": [
-        "Flowers",
-        "Classification"
-      ],
-      "size": "0.00MB",
-      "chain_id": 102,
-      "tusky_file_id": "7c4bc938-3113-45f2-8880-c8e03d8a0386",
-      "tusky_blob_id": "unknown",
-      "tusky_object_id": null,
-      "original_filename": "ERC20 Logos.csv",
-      "upload_date": "2025-05-22T01:41:03.863Z"
-    },
-    {
-      "title": "4",
-      "description": "4",
-      "format": "5",
-      "categories": [
-        "6"
-      ],
-      "size": "0.00MB",
-      "chain_id": 102,
-      "tusky_file_id": "b6a9102e-6b73-41ea-a74e-274d5b2a9da1",
-      "tusky_blob_id": "unknown",
-      "tusky_object_id": null,
-      "original_filename": "3.csv",
-      "upload_date": "2025-05-22T01:58:39.214Z"
-    },
-    {
-      "title": "3",
-      "description": "4",
-      "format": "5",
-      "categories": [
-        "6"
-      ],
-      "size": "0.00MB",
-      "chain_id": 102,
-      "tusky_file_id": "fa12dbba-7435-4242-893c-19799790a1b6",
-      "tusky_blob_id": "unknown",
-      "tusky_object_id": null,
-      "original_filename": "3.csv",
-      "upload_date": "2025-05-22T02:05:50.114Z"
-    },
-    {
-      "title": "3",
-      "description": "4",
-      "format": "5",
-      "categories": [
-        "5"
-      ],
-      "size": "0.00MB",
-      "chain_id": 102,
-      "tusky_file_id": "59410634-bed9-4bea-928b-a80ce7361497",
-      "tusky_blob_id": "unknown",
-      "tusky_object_id": null,
-      "original_filename": "3.csv",
-      "upload_date": "2025-05-22T02:07:32.699Z"
-    },
-    {
-      "title": "3",
-      "description": "4",
-      "format": "5",
-      "categories": [
-        "6"
-      ],
-      "size": "0.00MB",
-      "chain_id": 102,
-      "tusky_file_id": "ad9b4134-21c2-4349-afb9-99b5ccd06b31",
-      "tusky_blob_id": "unknown",
-      "tusky_object_id": null,
-      "original_filename": "3.csv",
-      "upload_date": "2025-05-22T02:26:47.154Z"
+      "original_filename": "xBad Iris Dataset copy.csv",
+      "upload_date": "2025-05-23T21:20:58.535Z",
+      "sui_bonding_curve": {
+        "object_id": "0xc51585dec24869df3d81b3f8c5a5489aaf3059abfd79295889ef2009a156fe09",
+        "package_id": "0x1cbcd75fa99bf06bea65121f7fd17556ad1ea332049544c9b9e5c6290ce2c3d6",
+        "shared_treasury_provider_id": "0xad4cb476e811b7e454373faeee1f071c7a944a89b79a22dee8fab55c17ada8e4",
+        "initial_curve_id_used": 1748035257375,
+        "transaction_digest": "F5484CZd81vffDjktoFCmnKYL7E4m3yHioibZtPuJSnU"
+      }
     }
   ]
 }

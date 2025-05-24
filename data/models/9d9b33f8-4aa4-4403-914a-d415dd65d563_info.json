@@ -1,5 +1,5 @@
 {
-  "fileId": "7c4bc938-3113-45f2-8880-c8e03d8a0386",
+  "fileId": "9d9b33f8-4aa4-4403-914a-d415dd65d563",
   "features": [
     "sepal.length",
     "sepal.width",
@@ -13,6 +13,6 @@
     "minSamplesSplit": 2,
     "criterion": "gini"
   },
-  "trainedAt": "2025-05-23T20:51:04.256Z",
+  "trainedAt": "2025-05-23T20:51:35.572Z",
   "numExamples": 150
 }
